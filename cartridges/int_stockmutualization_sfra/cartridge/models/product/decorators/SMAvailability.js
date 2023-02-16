@@ -87,11 +87,11 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
 
         var isOrderable = availabilityModel.isOrderable(parseFloat(quantity - SMAvailabilityModelLevels.inStock.value) || minOrderQuantity) && SMAvailabilityModel.isOrderable(parseFloat(quantity - availabilityModelLevels.inStock.value) || minOrderQuantity);
 
-        Object.defineProperty(object, 'SMAvailability', {
+        Object.defineProperty(object, 'availability', {
             enumerable: true,
             value: availability
         });
-        Object.defineProperty(object, 'SMAvailable', {
+        Object.defineProperty(object, 'available', {
             enumerable: true,
             value: isOrderable
         });

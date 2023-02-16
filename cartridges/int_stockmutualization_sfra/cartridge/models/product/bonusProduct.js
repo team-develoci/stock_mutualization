@@ -3,7 +3,7 @@
 var decorators = require('*/cartridge/models/product/decorators/index');
 
 /**
- * Decorate product with full product information
+ * Decorate product with bonus product information
  * @param {Object} product - Product Model to be decorated
  * @param {dw.catalog.Product} apiProduct - Product information returned by the script API
  * @param {Object} options - Options passed in from the factory
@@ -13,48 +13,24 @@ var decorators = require('*/cartridge/models/product/decorators/index');
  * @property {dw.util.Collection} options.promotions - Active promotions for a given product
  * @property {number} options.quantity - Current selected quantity
  * @property {Object} options.variables - Variables passed in on the query string
+ * @param {string} duuid - the UUID of the discount line item
  *
  * @returns {Object} - Decorated product model
  */
-module.exports = function fullProduct(product, apiProduct, options) {
+module.exports = function bonusProduct(product, apiProduct, options, duuid) {
     decorators.base(product, apiProduct, options.productType);
-    decorators.price(product, apiProduct, options.promotions, false, options.optionModel);
-
-    if (options.variationModel) {
-        decorators.images(product, options.variationModel, { types: ['large', 'small'], quantity: 'all' });
-    } else {
-        decorators.images(product, apiProduct, { types: ['large', 'small'], quantity: 'all' });
-    }
-
+    decorators.images(product, apiProduct, { types: ['large', 'small'], quantity: 'all' });
     decorators.quantity(product, apiProduct, options.quantity);
     decorators.variationAttributes(product, options.variationModel, {
         attributes: '*',
         endPoint: 'Variation'
     });
-    decorators.description(product, apiProduct);
-    decorators.ratings(product);
-    decorators.promotions(product, options.promotions);
     decorators.attributes(product, apiProduct.attributeModel);
     decorators.SMAvailability(product, apiProduct, options.quantity, apiProduct.minOrderQuantity.value, apiProduct.availabilityModel);
     decorators.options(product, options.optionModel, options.variables, options.quantity);
     decorators.quantitySelector(product, apiProduct.stepQuantity.value, options.variables, options.options);
-
-    var category = apiProduct.getPrimaryCategory();
-
-    if (!category && (options.productType === 'variant' || options.productType === 'variationGroup')) {
-        category = apiProduct.getMasterProduct().getPrimaryCategory();
-    }
-
-    if (category && 'sizeChartID' in category.custom) {
-        decorators.sizeChart(product, category.custom.sizeChartID);
-    }
-
-    decorators.currentUrl(product, options.variationModel, options.optionModel, 'Product-Show', apiProduct.ID, options.quantity);
     decorators.readyToOrder(product, options.variationModel);
-    decorators.online(product, apiProduct);
-    decorators.raw(product, apiProduct);
-    decorators.pageMetaData(product, apiProduct);
-    decorators.template(product, apiProduct);
+    decorators.bonusUnitPrice(product, duuid);
 
     return product;
 };
