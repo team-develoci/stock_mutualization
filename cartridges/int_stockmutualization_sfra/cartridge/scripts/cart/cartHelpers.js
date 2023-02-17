@@ -4,10 +4,40 @@ var base = module.superModule;
 
 var Site = require('dw/system/Site');
 var Resource = require('dw/web/Resource');
+var Transaction = require('dw/system/Transaction');
 var ProductMgr = require('dw/catalog/ProductMgr');
 var ProductInventoryMgr = require('dw/catalog/ProductInventoryMgr');
 
 var productHelper = require('*/cartridge/scripts/helpers/productHelpers');
+
+/**
+ * Filter ProductLineItems by matching the Stock Mutualization Inventory List
+ * @param {dw.catalog.Product} product - Product object
+ * @param {string} productId - Product ID to match
+ * @param {dw.util.Collection<dw.order.ProductLineItem>} productLineItems - Collection of the Cart's
+ *     product line items
+ * @param {string[]} childProducts - the products' sub-products
+ * @param {SelectedOption[]} options - product options
+ * @param {string} SMInventoryListID - Stock Mutualization Inventory List ID
+ * @return {dw.order.ProductLineItem} - Filtered the product line item matching productId
+ *  and has the same bundled items or options and the same SM Inventory List
+ */
+function getSMProductInCart(product, productId, productLineItems, childProducts, options, SMInventoryListID) {
+    var smProductLineItem = null;
+    var matchingProducts = base.getExistingProductLineItemsInCart(
+        product,
+        productId,
+        productLineItems,
+        childProducts,
+        options);
+    if (matchingProducts.length) {
+        var matches = matchingProducts.filter(function(p) {
+            return p.productInventoryListID === SMInventoryListID;
+        });
+        smProductLineItem = !empty(matches) ? matches[0] : null;
+    }
+    return smProductLineItem;
+}
 
 /**
  * Adds a product to the cart. If the product is already in the cart it increases the quantity of
@@ -26,7 +56,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
     var availableToSell = 0;
     var totalAvailable = 0;
     var defaultShipment = currentBasket.defaultShipment;
-    //var smShipment = ??
+    var smShipment = currentBasket.getShipment('sm') ? currentBasket.getShipment('sm') : currentBasket.createShipment('sm');
     var perpetual;
     var product = ProductMgr.getProduct(productId);
     var productInCart;
@@ -53,7 +83,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
     }
 
     if (product.bundle) {
-        canBeAdded = base.checkBundledProductCanBeAdded(childProducts, productLineItems, quantity); //Might have to overwrite for SM
+        canBeAdded = base.checkBundledProductCanBeAdded(childProducts, productLineItems, quantity); //TODO: Check -- Might have to overwrite for SM
     } else {
         totalQtyRequested = quantity + base.getQtyAlreadyInCart(productId, productLineItems);
         perpetual = product.availabilityModel.inventoryRecord.perpetual;
@@ -73,33 +103,33 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
 
         if (smAvailable >= missingQty) {
             canBeAdded = true;
-            // // Get existing pli from SM (smProductInCart) -> pli custom attribute/inventory list?
 
-            // if (smProductInCart) {
-            //     smProductInCart.setQuantityValue(missingQty);
-            //     quantity -= missingQty;
+            // Get existing pli from SM
+            smProductInCart = getSMProductInCart(product, productId, productLineItems, childProducts, options, SMInventoryListID);
 
-            //     smProductLineItem = smProductInCart;
-            // } else {
+            if (smProductInCart) {
+                smProductInCart.setQuantityValue(missingQty);
+                quantity -= missingQty;
+                smProductLineItem = smProductInCart;
+            } else {
+                smProductLineItem = base.addLineItem(
+                    currentBasket,
+                    product,
+                    missingQty,
+                    childProducts,
+                    optionModel,
+                    smShipment //Split Shipments so that each PLI can have a different inventory list assigned
+                );
+                // Sets the Inventory List to the SM one
+                Transaction.wrap(function () {
+                    if (smAvailable >= smProductLineItem.quantityValue) {
+                        // no-param-reassign
+                        smProductLineItem.setProductInventoryList(smInventory);
+                    }
+                });
 
-            //     smProductLineItem = base.addLineItem(
-            //         currentBasket,
-            //         product,
-            //         missingQty,
-            //         childProducts,
-            //         options,
-            //         --> Different Shipment, need to split the line items between inventory lists
-            //     );
-
-            //     Transaction.wrap(function () {
-            //         if (smAvailable >= smProductLineItem.quantityValue) {
-            //             // no-param-reassign
-            //             smProductLineItem.setProductInventoryList(smInventory);
-            //         }
-            //     });
-
-            //     quantity -= missingQty;
-            // }
+                quantity -= missingQty;
+            }
         }
     }
 
@@ -144,18 +174,21 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
                 defaultShipment
             );
     
-            // if (hasAllocationOnSite){
-            //     Transaction.wrap(function () {
-            //         // no-param-reassign
-            //         productLineItem.setProductInventoryList(ProductInventoryMgr.getInventoryList());
-            //     });
-            // }
+            if (hasAllocationOnSite){
+                Transaction.wrap(function () {
+                    // no-param-reassign
+                    productLineItem.setProductInventoryList(ProductInventoryMgr.getInventoryList());
+                });
+            }
     
             result.uuid = productLineItem.UUID;
         }
     }
 
-    //if empty result.uuid -> Assign smProduct UUID? In case SM Inventory is the only available one
+    // In case only SM Product was added
+    if (empty(result.uuid)) {
+        result.uuid = smProductLineItem.UUID;
+    }
 
     return result;
 }

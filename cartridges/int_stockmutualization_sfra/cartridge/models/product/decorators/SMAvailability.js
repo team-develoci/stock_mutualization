@@ -28,12 +28,16 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
         }
 
         var inStockValue = availabilityModelLevels.inStock.value + SMAvailabilityModelLevels.inStock.value;
+        if (inStockValue > productQuantity) inStockValue = productQuantity;
         var preOrderValue = availabilityModelLevels.preorder.value + SMAvailabilityModelLevels.preorder.value;
+        if (preOrderValue > productQuantity) preOrderValue = productQuantity;
         var backOrderValue = availabilityModelLevels.backorder.value + SMAvailabilityModelLevels.backorder.value;
+        if (backOrderValue > productQuantity) backOrderValue = productQuantity;
         var notAvailableValue = productQuantity - (inStockValue + preOrderValue + backOrderValue);
+        if (notAvailableValue > productQuantity) notAvailableValue = productQuantity;
 
         if (inStockValue > 0) {
-            if (inStockValue >= productQuantity) {
+            if (inStockValue === productQuantity) {
                 availability.messages.push(Resource.msg('label.instock', 'common', null));
             } else {
                 availability.messages.push(
@@ -85,7 +89,8 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
             }
         }
 
-        var isOrderable = availabilityModel.isOrderable(parseFloat(quantity - SMAvailabilityModelLevels.inStock.value) || minOrderQuantity) && SMAvailabilityModel.isOrderable(parseFloat(quantity - availabilityModelLevels.inStock.value) || minOrderQuantity);
+        var orderable = productQuantity - SMAvailabilityModelLevels.inStock.value >= minOrderQuantity ? availabilityModel.isOrderable(parseFloat(productQuantity - SMAvailabilityModelLevels.inStock.value)) : true;
+        var SMOrderable = productQuantity - availabilityModelLevels.inStock.value >= minOrderQuantity ? SMAvailabilityModel.isOrderable(parseFloat(productQuantity - availabilityModelLevels.inStock.value)) : true;
 
         Object.defineProperty(object, 'availability', {
             enumerable: true,
@@ -93,7 +98,7 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
         });
         Object.defineProperty(object, 'available', {
             enumerable: true,
-            value: isOrderable
+            value: orderable && SMOrderable
         });
     }
 }
