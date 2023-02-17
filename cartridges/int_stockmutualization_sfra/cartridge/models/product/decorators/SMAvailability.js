@@ -27,14 +27,10 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
             availability.inStockDate = null;
         }
 
-        var inStockValue = availabilityModelLevels.inStock.value + SMAvailabilityModelLevels.inStock.value;
-        if (inStockValue > productQuantity) inStockValue = productQuantity;
-        var preOrderValue = availabilityModelLevels.preorder.value + SMAvailabilityModelLevels.preorder.value;
-        if (preOrderValue > productQuantity) preOrderValue = productQuantity;
-        var backOrderValue = availabilityModelLevels.backorder.value + SMAvailabilityModelLevels.backorder.value;
-        if (backOrderValue > productQuantity) backOrderValue = productQuantity;
-        var notAvailableValue = productQuantity - (inStockValue + preOrderValue + backOrderValue);
-        if (notAvailableValue > productQuantity) notAvailableValue = productQuantity;
+        var inStockValue = Math.min(availabilityModelLevels.inStock.value + SMAvailabilityModelLevels.inStock.value, productQuantity);
+        var preOrderValue = Math.min(availabilityModelLevels.preorder.value + SMAvailabilityModelLevels.preorder.value, productQuantity);
+        var backOrderValue = Math.min(availabilityModelLevels.backorder.value + SMAvailabilityModelLevels.backorder.value, productQuantity);
+        var notAvailableValue = Math.max(productQuantity - (inStockValue + preOrderValue + backOrderValue), 0);
 
         if (inStockValue > 0) {
             if (inStockValue === productQuantity) {
