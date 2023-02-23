@@ -40,6 +40,36 @@ function getSMProductInCart(product, productId, productLineItems, childProducts,
 }
 
 /**
+ * Check if the bundled product can be added to the cart
+ * @param {string[]} childProducts - the products' sub-products
+ * @param {dw.util.Collection<dw.order.ProductLineItem>} productLineItems - Collection of the Cart's
+ *     product line items
+ * @param {number} quantity - the number of products to the cart
+ * @param {number} atsValueByChildPid - ATS of each child product
+ * @return {boolean} - return true if the bundled product can be added
+ */
+function checkBundledProductCanBeAdded(childProducts, productLineItems, quantity, atsValueByChildPid) {
+    var totalQtyRequested = 0;
+    var canBeAdded = false;
+
+    childProducts.forEach(function (childProduct) {
+        var apiChildProduct = ProductMgr.getProduct(childProduct.pid);
+        atsValueByChildPid[childProduct.pid] =
+            apiChildProduct.availabilityModel.inventoryRecord.ATS.value;
+    });
+
+    canBeAdded = childProducts.every(function (childProduct) {
+        var bundleQuantity = quantity;
+        var itemQuantity = bundleQuantity * childProduct.quantity;
+        var childPid = childProduct.pid;
+        totalQtyRequested = itemQuantity + base.getQtyAlreadyInCart(childPid, productLineItems);
+        return totalQtyRequested <= atsValueByChildPid[childPid];
+    });
+
+    return canBeAdded;
+}
+
+/**
  * Adds a product to the cart. If the product is already in the cart it increases the quantity of
  * that product.
  * @param {dw.order.Basket} currentBasket - Current users's basket
@@ -55,6 +85,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
 
     var availableToSell = 0;
     var totalAvailable = 0;
+    var atsValueByChildPid = {}
     var defaultShipment = currentBasket.defaultShipment;
     var smShipment = currentBasket.getShipment('sm') ? currentBasket.getShipment('sm') : currentBasket.createShipment('sm');
     var perpetual;
@@ -74,7 +105,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
         message: Resource.msg('text.alert.addedtobasket', 'product', null)
     };
 
-    var totalQtyRequested = 0;
+    var totalQtyRequested = quantity + base.getQtyAlreadyInCart(productId, productLineItems);
     var canBeAdded = false;
 
     if (hasAllocationOnSite) {
@@ -83,9 +114,8 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
     }
 
     if (product.bundle) {
-        canBeAdded = base.checkBundledProductCanBeAdded(childProducts, productLineItems, quantity); //TODO: Check -- Might have to overwrite for SM
+        canBeAdded = (hasAllocationOnSite ? availableToSell >= totalQtyRequested : true) && checkBundledProductCanBeAdded(childProducts, productLineItems, quantity, atsValueByChildPid);
     } else {
-        totalQtyRequested = quantity + base.getQtyAlreadyInCart(productId, productLineItems);
         perpetual = product.availabilityModel.inventoryRecord.perpetual;
         canBeAdded =
             (perpetual
@@ -94,8 +124,12 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
 
     if (!canBeAdded && stockMutualizationEnabled && !empty(SMInventoryListID)) {
         var smAvailable = 0;
+        if (product.bundle) {
+            availableToSell = childProducts.reduce(function(acc, curr) {return Math.min(acc, atsValueByChildPid[curr.pid])}, hasAllocationOnSite ? availableToSell : 9999);
+        }
         var missingQty = totalQtyRequested - availableToSell;
         var smInventory = ProductInventoryMgr.getInventoryList(SMInventoryListID);
+        //Bundle stuff will need to be different after this point
         if (smInventory && smInventory.getRecord(product.ID)) {
             smAvailable = smInventory.getRecord(product.ID).ATS.value;
             totalAvailable += smAvailable;
