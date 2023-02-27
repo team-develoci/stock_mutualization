@@ -9,6 +9,7 @@ var ProductMgr = require('dw/catalog/ProductMgr');
 var ProductInventoryMgr = require('dw/catalog/ProductInventoryMgr');
 
 var productHelper = require('*/cartridge/scripts/helpers/productHelpers');
+var collections = require('*/cartridge/scripts/util/collections');
 
 /**
  * Filter ProductLineItems by matching the Stock Mutualization Inventory List
@@ -114,7 +115,10 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
     }
 
     if (product.bundle) {
-        canBeAdded = (hasAllocationOnSite ? availableToSell >= totalQtyRequested : true) && checkBundledProductCanBeAdded(childProducts, productLineItems, quantity, atsValueByChildPid);
+        var childCanBeAdded = checkBundledProductCanBeAdded(childProducts, productLineItems, quantity, atsValueByChildPid);
+        availableToSell = hasAllocationOnSite ? childProducts.reduce(function(acc, curr) {return Math.min(acc, atsValueByChildPid[curr.pid])}, availableToSell) : 0;
+        totalAvailable = availableToSell;
+        canBeAdded = availableToSell >= totalQtyRequested && childCanBeAdded;
     } else {
         perpetual = product.availabilityModel.inventoryRecord.perpetual;
         canBeAdded =
@@ -124,14 +128,20 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
 
     if (!canBeAdded && stockMutualizationEnabled && !empty(SMInventoryListID)) {
         var smAvailable = 0;
-        if (product.bundle) {
-            availableToSell = childProducts.reduce(function(acc, curr) {return Math.min(acc, atsValueByChildPid[curr.pid])}, hasAllocationOnSite ? availableToSell : 9999);
-        }
         var missingQty = totalQtyRequested - availableToSell;
         var smInventory = ProductInventoryMgr.getInventoryList(SMInventoryListID);
-        //Bundle stuff will need to be different after this point
         if (smInventory && smInventory.getRecord(product.ID)) {
-            smAvailable = smInventory.getRecord(product.ID).ATS.value;
+            if (product.bundle) {
+                var smATSByChildPid = {};
+                var smAllocation = smInventory.getRecord(product.ID);
+                childProducts.forEach(function (childProduct) {
+                    var record = smInventory.getRecord(childProduct.pid)
+                    smATSByChildPid[childProduct.pid] = record ? record.ATS.value : 0;
+                });
+                smAvailable = childProducts.reduce(function(acc, curr) {return Math.min(acc, smATSByChildPid[curr.pid])}, smAllocation ? smAllocation.ATS.value : 0);
+            } else {
+                smAvailable = smInventory.getRecord(product.ID).ATS.value;
+            }
             totalAvailable += smAvailable;
         }
 
@@ -156,9 +166,11 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
                 );
                 // Sets the Inventory List to the SM one
                 Transaction.wrap(function () {
-                    if (smAvailable >= smProductLineItem.quantityValue) {
-                        // no-param-reassign
-                        smProductLineItem.setProductInventoryList(smInventory);
+                    smProductLineItem.setProductInventoryList(smInventory);
+                    if (product.bundle) {
+                        collections.forEach(smProductLineItem.bundledProductLineItems, function(pli) {
+                            pli.setProductInventoryList(smInventory);
+                        });
                     }
                 });
 
@@ -208,12 +220,6 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
                 defaultShipment
             );
     
-            if (hasAllocationOnSite){
-                Transaction.wrap(function () {
-                    // no-param-reassign
-                    productLineItem.setProductInventoryList(ProductInventoryMgr.getInventoryList());
-                });
-            }
     
             result.uuid = productLineItem.UUID;
         }
