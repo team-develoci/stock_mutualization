@@ -1,0 +1,13 @@
+<iscontent type="text/html" charset="UTF-8" compact="true"/>
+<iscomment>
+Prints a message about the product's availability. The messages to be displayed are defined as resources.
+</iscomment>
+
+<iscomment>
+    TODO: For whatever reason we can't get the stuff from Pdict
+</iscomment>
+
+<div class="availability-msg">
+    <p class="${pdict.availabilityClass}">${pdict.availabilityMsg}</p>
+    <isif condition="${pdict.inStockDateMsg}"><p class="in-stock-date-msg">${pdict.inStockDateMsg}</p></isif>
+</div>
