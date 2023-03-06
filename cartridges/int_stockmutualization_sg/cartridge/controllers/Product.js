@@ -37,6 +37,7 @@ function getSMAvailability(product) {
     var availabilityClass;
     var availabilityMsg;
     var inStockDateMsg;
+    var ATS = 0;
 
     if (
         (availabilityStatus === ProductAvailabilityModel.AVAILABILITY_STATUS_IN_STOCK && inventoryRecord != null && (inventoryRecord.stockLevel.available || inventoryRecord.perpetual)) ||
@@ -71,10 +72,19 @@ function getSMAvailability(product) {
         availabilityMsg = Resource.msg('global.allnotavailable', 'locale', null);
     }
 
+    if (inventoryRecord) {
+        ATS += inventoryRecord.perpetual ? 999 : inventoryRecord.ATS;
+    }
+    if (SMInventoryRecord) {
+        ATS += SMInventoryRecord.perpetual ? 999 : SMInventoryRecord.ATS;
+    }
+
     return {
         availabilityClass: availabilityClass,
         availabilityMsg: availabilityMsg,
-        inStockDateMsg: inStockDateMsg
+        inStockDateMsg: inStockDateMsg,
+        ATS: Math.min(999, ATS).toString(),
+        isProductAvailable: ATS > 0
     }
 }
 
@@ -96,9 +106,7 @@ function show() {
         DefaultVariant: product.getVariationModel().getDefaultVariant(),
         CurrentOptionModel: product.updateOptionSelection(params),
         CurrentVariationModel: currentVariationModel,
-        availabilityClass: smAvailability.availabilityClass,
-        availabilityMsg: smAvailability.availabilityMsg,
-        inStockDateMsg: smAvailability.inStockDateMsg
+        ATS: smAvailability.ATS
     }
 
     if (product.isVisible()) {
@@ -111,6 +119,44 @@ function show() {
         response.setStatus(410);
         app.getView().render('error/notfound');
     }
+}
+
+/**
+ * Renders the product detail page.
+ *
+ * If the product is online, gets a ProductView and updates the product data from the httpParameterMap.
+ * Renders the product detail page (product/productdetail template). If the product is not online, sets the response status to 401,
+ * and renders an error page (error/notfound template).
+ */
+function detail() {
+
+    const Product = app.getModel('Product');
+    const product = Product.get(params.pid.stringValue);
+    const smAvailability = getSMAvailability(product.object);
+    const productID = product.getID();
+    const masterID = product.isVariant() || product.isVariationGroup() ? product.getMasterProduct().getID() : productID;
+
+    if (product.isVisible()) {
+        app.getView('Product', {
+            product: product,
+            DefaultVariant: product.getVariationModel().getDefaultVariant(),
+            CurrentOptionModel: product.updateOptionSelection(params),
+            CurrentVariationModel: product.updateVariationSelection(params),
+            availabilityClass: smAvailability.availabilityClass,
+            availabilityMsg: smAvailability.availabilityMsg,
+            inStockDateMsg: smAvailability.inStockDateMsg,
+            ATS: smAvailability.ATS,
+            isProductAvailable: smAvailability.isProductAvailable,
+            masterID: masterID,
+            ID: productID
+        }).render(product.getTemplate() || 'product/productdetail');
+    } else {
+        // @FIXME Correct would be to set a 404 status code but that breaks the page as it utilizes
+        // remote includes which the WA won't resolve
+        response.setStatus(410);
+        app.getView().render('error/notfound');
+    }
+
 }
 
 /**
@@ -142,20 +188,26 @@ function showInCategory() {
     show();
 }
 
+/*
+ * Web exposed methods
+ */
 /**
  * Renders the product detail page within the context of a category.
  * @see module:controllers/Product~showInCategory
  */
 exports.ShowInCategory = guard.ensure(['get'], showInCategory);
 
-/*
- * Web exposed methods
- */
 /**
  * Renders the product template.
  * @see module:controllers/Product~show
  */
 exports.Show = guard.ensure(['get'], show);
+
+/**
+ * Renders the productdetail template.
+ * @see module:controllers/Product~detail
+ */
+exports.Detail = guard.ensure(['get'], detail);
 
 Object.keys(base).forEach(function (key) {
     if (!exports[key]) {

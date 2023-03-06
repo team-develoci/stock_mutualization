@@ -1,10 +1,6 @@
 <iscontent type="text/html" charset="UTF-8" compact="true"/>
 <iscomment>
-Prints a message about the product's availability. The messages to be displayed are defined as resources.
-</iscomment>
-
-<iscomment>
-    TODO: For whatever reason we can't get the stuff from Pdict
+Prints a message about the product's availability.
 </iscomment>
 
 <div class="availability-msg">
