@@ -1,0 +1,12 @@
+node_modules/
+
+npm-debug.log
+.idea/
+dw.json
+
+.vscode
+.history
+*.iml
+.idea
+test/acceptance/report
+test/integration/config.json

@@ -12,7 +12,7 @@ var StoreMgr = require('dw/catalog/StoreMgr');
  * @param {dw.order.Basket} basket - The current user's basket
  * @returns {Object} an error object
  */
-base.validateProducts = function(basket) {
+base.validateProducts = function (basket) {
     var result = {
         error: false,
         hasInventory: true
@@ -46,6 +46,6 @@ base.validateProducts = function(basket) {
     });
 
     return result;
-}
+};
 
 module.exports = base;

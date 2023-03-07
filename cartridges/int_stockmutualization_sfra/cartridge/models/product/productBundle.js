@@ -26,7 +26,7 @@ module.exports = function bundleProduct(product, apiProduct, options, factory) {
     decorators.ratings(product);
     decorators.promotions(product, options.promotions);
     decorators.attributes(product, apiProduct.attributeModel);
-    decorators.SMAvailability(product, apiProduct, options.quantity, apiProduct.minOrderQuantity.value, apiProduct.availabilityModel);
+    decorators.smAvailability(product, apiProduct, options.quantity, apiProduct.minOrderQuantity.value, apiProduct.availabilityModel);
     decorators.options(product, options.optionModel, options.variables, options.quantity);
     decorators.quantitySelector(product, apiProduct.stepQuantity.value, options.variables, options.options);
 

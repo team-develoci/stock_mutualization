@@ -23,7 +23,7 @@ module.exports = function productLineItem(product, apiProduct, options, factory)
     productDecorators.price(product, apiProduct, options.promotions, false, options.currentOptionModel);
     productDecorators.images(product, apiProduct, { types: ['small'], quantity: 'single' });
 
-    productDecorators.SMAvailability(product, apiProduct, options.quantity, apiProduct.minOrderQuantity.value, apiProduct.availabilityModel);
+    productDecorators.smAvailability(product, apiProduct, options.quantity, apiProduct.minOrderQuantity.value, apiProduct.availabilityModel);
 
     productLineItemDecorators.quantity(product, options.quantity);
     productLineItemDecorators.gift(product, options.lineItem);

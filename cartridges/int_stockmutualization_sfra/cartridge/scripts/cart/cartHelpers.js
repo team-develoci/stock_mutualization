@@ -1,3 +1,5 @@
+/* eslint-disable no-undef */
+/* eslint-disable no-param-reassign */
 'use strict';
 
 var base = module.superModule;
@@ -32,7 +34,7 @@ function getSMProductInCart(product, productId, productLineItems, childProducts,
         childProducts,
         options);
     if (matchingProducts.length) {
-        var matches = matchingProducts.filter(function(p) {
+        var matches = matchingProducts.filter(function (p) {
             return p.productInventoryListID === SMInventoryListID;
         });
         smProductLineItem = !empty(matches) ? matches[0] : null;
@@ -86,7 +88,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
 
     var availableToSell = 0;
     var totalAvailable = 0;
-    var atsValueByChildPid = {}
+    var atsValueByChildPid = {};
     var defaultShipment = currentBasket.defaultShipment;
     var smShipment = currentBasket.getShipment('sm') ? currentBasket.getShipment('sm') : currentBasket.createShipment('sm');
     var perpetual;
@@ -100,7 +102,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
     var quantityToSet;
     var optionModel = productHelper.getCurrentOptionModel(product.optionModel, options);
     var hasAllocationOnSite = !empty(product.availabilityModel) && !empty(product.availabilityModel.inventoryRecord);
-    
+
     var result = {
         error: false,
         message: Resource.msg('text.alert.addedtobasket', 'product', null)
@@ -116,7 +118,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
 
     if (product.bundle) {
         var childCanBeAdded = checkBundledProductCanBeAdded(childProducts, productLineItems, quantity, atsValueByChildPid);
-        availableToSell = hasAllocationOnSite ? childProducts.reduce(function(acc, curr) {return Math.min(acc, atsValueByChildPid[curr.pid])}, availableToSell) : 0;
+        availableToSell = hasAllocationOnSite ? childProducts.reduce(function (acc, curr) { return Math.min(acc, atsValueByChildPid[curr.pid]); }, availableToSell) : 0;
         totalAvailable = availableToSell;
         canBeAdded = availableToSell >= totalQtyRequested && childCanBeAdded;
     } else {
@@ -135,10 +137,10 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
                 var smATSByChildPid = {};
                 var smAllocation = smInventory.getRecord(product.ID);
                 childProducts.forEach(function (childProduct) {
-                    var record = smInventory.getRecord(childProduct.pid)
+                    var record = smInventory.getRecord(childProduct.pid);
                     smATSByChildPid[childProduct.pid] = record ? record.ATS.value : 0;
                 });
-                smAvailable = childProducts.reduce(function(acc, curr) {return Math.min(acc, smATSByChildPid[curr.pid])}, smAllocation ? smAllocation.ATS.value : 0);
+                smAvailable = childProducts.reduce(function (acc, curr) { return Math.min(acc, smATSByChildPid[curr.pid]); }, smAllocation ? smAllocation.ATS.value : 0);
             } else {
                 smAvailable = smInventory.getRecord(product.ID).ATS.value;
             }
@@ -162,13 +164,13 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
                     missingQty,
                     childProducts,
                     optionModel,
-                    smShipment //Split Shipments so that each PLI can have a different inventory list assigned
+                    smShipment // Split Shipments so that each PLI can have a different inventory list assigned
                 );
                 // Sets the Inventory List to the SM one
                 Transaction.wrap(function () {
                     smProductLineItem.setProductInventoryList(smInventory);
                     if (product.bundle) {
-                        collections.forEach(smProductLineItem.bundledProductLineItems, function(pli) {
+                        collections.forEach(smProductLineItem.bundledProductLineItems, function (pli) {
                             pli.setProductInventoryList(smInventory);
                         });
                     }
@@ -194,12 +196,12 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
     if (quantity > 0) {
         productInCart = base.getExistingProductLineItemInCart(
             product, productId, productLineItems, childProducts, options);
-    
+
         if (productInCart) {
             productQuantityInCart = productInCart.quantity.value;
             quantityToSet = quantity ? quantity + productQuantityInCart : productQuantityInCart + 1;
             availableToSell = productInCart.product.availabilityModel.inventoryRecord.ATS.value;
-    
+
             if (availableToSell >= quantityToSet || perpetual) {
                 productInCart.setQuantityValue(quantityToSet);
                 result.uuid = productInCart.UUID;
@@ -210,7 +212,6 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
                     : Resource.msg('error.alert.selected.quantity.cannot.be.added', 'product', null);
             }
         } else {
-            var productLineItem;
             productLineItem = base.addLineItem(
                 currentBasket,
                 product,
@@ -219,8 +220,8 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
                 optionModel,
                 defaultShipment
             );
-    
-    
+
+
             result.uuid = productLineItem.UUID;
         }
     }
@@ -231,6 +232,6 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
     }
 
     return result;
-}
+};
 
 module.exports = base;

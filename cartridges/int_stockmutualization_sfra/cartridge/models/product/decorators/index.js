@@ -2,6 +2,6 @@
 
 var base = module.superModule;
 
-base.SMAvailability = require('*/cartridge/models/product/decorators/SMAvailability');
+base.smAvailability = require('*/cartridge/models/product/decorators/smAvailability');
 
 module.exports = base;

@@ -24,7 +24,7 @@ module.exports = function productLineItem(product, apiProduct, options) {
     productDecorators.variationAttributes(product, options.variationModel, {
         attributes: 'selected'
     });
-    productDecorators.SMAvailability(product, apiProduct, options.quantity, apiProduct.minOrderQuantity.value, apiProduct.availabilityModel);
+    productDecorators.smAvailability(product, apiProduct, options.quantity, apiProduct.minOrderQuantity.value, apiProduct.availabilityModel);
 
     productLineItemDecorators.quantity(product, options.quantity);
     productLineItemDecorators.gift(product, options.lineItem);

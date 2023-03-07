@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */
 'use strict';
 
 var Site = require('dw/system/Site');
@@ -13,11 +14,11 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
         availability.messages = [];
         var productQuantity = quantity ? parseInt(quantity, 10) : minOrderQuantity;
         var SMInventoryList = ProductInventoryMgr.getInventoryList(SMInventoryListID);
-        var SMAvailabilityModel = apiProduct.getAvailabilityModel(SMInventoryList);
+        var smAvailabilityModel = apiProduct.getAvailabilityModel(SMInventoryList);
         var availabilityModelLevels = availabilityModel.getAvailabilityLevels(productQuantity);
-        var SMAvailabilityModelLevels = SMAvailabilityModel.getAvailabilityLevels(productQuantity);
+        var smAvailabilityModelLevels = smAvailabilityModel.getAvailabilityLevels(productQuantity);
         var inventoryRecord = availabilityModel.inventoryRecord;
-        var SMInventoryRecord = SMAvailabilityModel.inventoryRecord;
+        var SMInventoryRecord = smAvailabilityModel.inventoryRecord;
 
         if (inventoryRecord && inventoryRecord.inStockDate) {
             availability.inStockDate = inventoryRecord.inStockDate.toDateString();
@@ -27,9 +28,9 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
             availability.inStockDate = null;
         }
 
-        var inStockValue = Math.min(availabilityModelLevels.inStock.value + SMAvailabilityModelLevels.inStock.value, productQuantity);
-        var preOrderValue = Math.min(availabilityModelLevels.preorder.value + SMAvailabilityModelLevels.preorder.value, productQuantity);
-        var backOrderValue = Math.min(availabilityModelLevels.backorder.value + SMAvailabilityModelLevels.backorder.value, productQuantity);
+        var inStockValue = Math.min(availabilityModelLevels.inStock.value + smAvailabilityModelLevels.inStock.value, productQuantity);
+        var preOrderValue = Math.min(availabilityModelLevels.preorder.value + smAvailabilityModelLevels.preorder.value, productQuantity);
+        var backOrderValue = Math.min(availabilityModelLevels.backorder.value + smAvailabilityModelLevels.backorder.value, productQuantity);
         var notAvailableValue = Math.max(productQuantity - (inStockValue + preOrderValue + backOrderValue), 0);
 
         if (inStockValue > 0) {
@@ -85,8 +86,8 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
             }
         }
 
-        var orderable = productQuantity - SMAvailabilityModelLevels.inStock.value >= minOrderQuantity ? availabilityModel.isOrderable(parseFloat(productQuantity - SMAvailabilityModelLevels.inStock.value)) : true;
-        var SMOrderable = productQuantity - availabilityModelLevels.inStock.value >= minOrderQuantity ? SMAvailabilityModel.isOrderable(parseFloat(productQuantity - availabilityModelLevels.inStock.value)) : true;
+        var orderable = productQuantity - smAvailabilityModelLevels.inStock.value >= minOrderQuantity ? availabilityModel.isOrderable(parseFloat(productQuantity - smAvailabilityModelLevels.inStock.value)) : true;
+        var SMOrderable = productQuantity - availabilityModelLevels.inStock.value >= minOrderQuantity ? smAvailabilityModel.isOrderable(parseFloat(productQuantity - availabilityModelLevels.inStock.value)) : true;
 
         Object.defineProperty(object, 'availability', {
             enumerable: true,
@@ -97,4 +98,4 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
             value: orderable && SMOrderable
         });
     }
-}
+};
