@@ -16,7 +16,6 @@ var base = module.superModule;
 /* Script Modules */
 var app = require('*/cartridge/scripts/app');
 var guard = require('*/cartridge/scripts/guard');
-var meta = require('*/cartridge/scripts/meta');
 
 /**
  * Checks whether a given product has all required attributes selected, and returns the selected variant if true
@@ -39,7 +38,7 @@ function getSelectedProduct(product) {
 }
 
 /**
- *
+ * Function to calculate Availability considering the Stock Mutualization inventory
  * @param {dw.catalog.Product} product - the Product
  * @returns {Object} - Availability information
  */
@@ -115,39 +114,6 @@ function getsmAvailability(product) {
 }
 
 /**
- * Renders the product page.
- *
- * If the product is online, gets a ProductView and updates the product data from the httpParameterMap.
- * Renders the product page (product/product template). If the product is not online, sets the response status to 401,
- * and renders an error page (error/notfound template).
- */
-function show() {
-    var Product = app.getModel('Product');
-    var product = Product.get(params.pid.stringValue);
-    var currentVariationModel = product.updateVariationSelection(params);
-    product = product.isVariationGroup() ? product : getSelectedProduct(product);
-    var smAvailability = getsmAvailability(product.object);
-    var pdict = {
-        product: product,
-        DefaultVariant: product.getVariationModel().getDefaultVariant(),
-        CurrentOptionModel: product.updateOptionSelection(params),
-        CurrentVariationModel: currentVariationModel,
-        ATS: smAvailability.ATS
-    };
-
-    if (product.isVisible()) {
-        meta.update(product);
-        meta.updatePageMetaTags(product);
-        app.getView('Product', pdict).render(product.getTemplate() || 'product/product');
-    } else {
-        // @FIXME Correct would be to set a 404 status code but that breaks the page as it utilizes
-        // remote includes which the Web Adapter won't resolve.
-        response.setStatus(410);
-        app.getView().render('error/notfound');
-    }
-}
-
-/**
  * Renders the product detail page.
  *
  * If the product is online, gets a ProductView and updates the product data from the httpParameterMap.
@@ -155,11 +121,15 @@ function show() {
  * and renders an error page (error/notfound template).
  */
 function detail() {
+    var Site = require('dw/system/Site');
     var Product = app.getModel('Product');
     var product = Product.get(params.pid.stringValue);
     var smAvailability = getsmAvailability(product.object);
     var productID = product.getID();
     var masterID = product.isVariant() || product.isVariationGroup() ? product.getMasterProduct().getID() : productID;
+    var selectedProduct = product.isVariationGroup() ? product : getSelectedProduct(product);
+    var availableForInStorePickup = selectedProduct.object.custom.availableForInStorePickup;
+    var isStorePickUpEnabled = Site.getCurrent().getCustomPreferenceValue('enableStorePickUp');
 
     if (product.isVisible()) {
         app.getView('Product', {
@@ -173,7 +143,9 @@ function detail() {
             ATS: smAvailability.ATS,
             isProductAvailable: smAvailability.isProductAvailable,
             masterID: masterID,
-            ID: productID
+            ID: productID,
+            availableForInStorePickup: availableForInStorePickup,
+            isStorePickUpEnabled: isStorePickUpEnabled
         }).render(product.getTemplate() || 'product/productdetail');
     } else {
         // @FIXME Correct would be to set a 404 status code but that breaks the page as it utilizes
@@ -182,30 +154,6 @@ function detail() {
         app.getView().render('error/notfound');
     }
 }
-
-/**
- * Renders the product detail page within the context of a category.
- * Calls the {@link module:controllers/Product~show|show} function.
- * __Important:__ this function is not obsolete and must remain as it is used by hardcoded platform rewrite rules.
- */
-function showInCategory() {
-    show();
-}
-
-/*
- * Web exposed methods
- */
-/**
- * Renders the product detail page within the context of a category.
- * @see module:controllers/Product~showInCategory
- */
-exports.ShowInCategory = guard.ensure(['get'], showInCategory);
-
-/**
- * Renders the product template.
- * @see module:controllers/Product~show
- */
-exports.Show = guard.ensure(['get'], show);
 
 /**
  * Renders the productdetail template.

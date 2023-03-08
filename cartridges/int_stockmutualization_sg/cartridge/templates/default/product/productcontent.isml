@@ -90,14 +90,7 @@
                     =============================================================
                 </iscomment>
 
-                <isscript>
-                    let product = pdict.Product;
-                    let variationModel = pdict.CurrentVariationModel || product.getVariationModel();
-                    let selectedVariant = variationModel.getSelectedVariant();
-                    let availableForInStorePickup = selectedVariant ? selectedVariant.custom.availableForInStorePickup : product.custom.availableForInStorePickup;
-                    let isStorePickUpEnabled = dw.system.Site.getCurrent().getCustomPreferenceValue('enableStorePickUp');
-                </isscript>
-                <isif condition="${isStorePickUpEnabled && availableForInStorePickup}">
+                <isif condition="${pdict.isStorePickUpEnabled && pdict.availableForInStorePickup}">
                     <div class="availability-storepickup">
                         <div class="availability-web">
                             <i class="fa fa-truck fa-lg pull-left"></i>
