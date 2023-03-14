@@ -1,3 +1,6 @@
+/* eslint-disable no-param-reassign */
+/* eslint-disable new-cap */
+/* eslint-disable no-undef */
 'use strict';
 /**
  * Model for cart functionality. Creates a CartModel class with payment, shipping, and product
@@ -6,21 +9,27 @@
  */
 var base = module.superModule;
 
+var Site = require('dw/system/Site');
 var Transaction = require('dw/system/Transaction');
+var ArrayList = require('dw/util/ArrayList');
 var Product = require('*/cartridge/scripts/models/ProductModel');
+var QuantityLineItem = require('*/cartridge/scripts/models/QuantityLineItemModel');
 var ProductListMgr = require('dw/customer/ProductListMgr');
+var ProductInventoryMgr = require('dw/catalog/ProductInventoryMgr');
 var BasketMgr = require('dw/order/BasketMgr');
 
 var app = require('*/cartridge/scripts/app');
 var ProductList = app.getModel('ProductList');
 
+var stockMutualizationEnabled = Site.current.getCustomPreferenceValue('SM_Enabled');
+var SMInventoryListID = Site.current.getCustomPreferenceValue('SM_InventoryID');
+
 var CartModel = base.extend({
     addProductToCart: function () {
         var cart = this;
         var params = request.httpParameterMap;
-        var format = params.hasOwnProperty('format') && params.format.stringValue ? params.format.stringValue.toLowerCase() : '';
+        var format = params.format && params.format.stringValue ? params.format.stringValue.toLowerCase() : '';
         var newBonusDiscountLineItem;
-        // var Product = app.getModel('Product');
         var productOptionModel;
         var productToAdd;
         var template = 'checkout/cart/minicart';
@@ -35,6 +44,7 @@ var CartModel = base.extend({
 
         if (params.source && params.source.stringValue === 'wishlist' && params.cartAction && params.cartAction.stringValue === 'update') {
             app.getController('Wishlist').ReplaceProductListItem();
+            // eslint-disable-next-line consistent-return
             return;
         }
 
@@ -43,7 +53,7 @@ var CartModel = base.extend({
             var lineItem = cart.getProductLineItemByUUID(params.uuid.stringValue);
             if (lineItem) {
                 var productModel = Product.get(params.pid.stringValue);
-                var quantity = parseInt(params.Quantity.value);
+                var quantity = parseInt(params.Quantity.value, 10);
 
                 productToAdd = productModel.object;
                 productOptionModel = productModel.updateOptionSelection(params);
@@ -66,7 +76,6 @@ var CartModel = base.extend({
             if (productList) {
                 cart.addProductListItem(productList.getItem(params.itemid.stringValue), params.Quantity.doubleValue);
             }
-
         // Adds a product.
         } else {
             var previousBonusDiscountLineItems = cart.getBonusDiscountLineItems();
@@ -82,7 +91,7 @@ var CartModel = base.extend({
 
                     if (childProduct.object && !childProduct.isProductSet()) {
                         var childProductOptionModel = childProduct.updateOptionSelection(params);
-                        cart.addProductItem(childProduct.object, parseInt(childQtys[counter]), childProductOptionModel);
+                        cart.addProductItem(childProduct.object, parseInt(childQtys[counter], 10), childProductOptionModel);
                     }
                     counter++;
                 }
@@ -118,14 +127,21 @@ var CartModel = base.extend({
     addProductItem: function (product, quantity, productOptionModel) {
         var cart = this;
         Transaction.wrap(function () {
-            var i;
             if (product) {
+                var availableToSell = 0;
+                var canBeAdded = false;
+
                 var productInCart;
+                var smProductInCart;
                 var productLineItem;
+                var smProductLineItem;
                 var productLineItems = cart.object.productLineItems;
                 var quantityInCart;
                 var quantityToSet;
                 var shipment = cart.object.defaultShipment;
+                var smShipment = cart.object.getShipment('sm') ? cart.object.getShipment('sm') : cart.object.createShipment('sm');
+                var hasAllocationOnSite = !empty(product.availabilityModel) && !empty(product.availabilityModel.inventoryRecord);
+
 
                 for (var q = 0; q < productLineItems.length; q++) {
                     if (productLineItems[q].productID === product.ID) {
@@ -134,23 +150,80 @@ var CartModel = base.extend({
                     }
                 }
 
-                if (productInCart) {
-                    if (productInCart.optionModel) {
+                for (var s = 0; s < productLineItems.length; s++) {
+                    if (productLineItems[s].productID === product.ID && productLineItems[s].productInventoryListID === SMInventoryListID) {
+                        productInCart = productLineItems[s];
+                        break;
+                    }
+                }
+
+                if (hasAllocationOnSite) {
+                    availableToSell = product.availabilityModel.inventoryRecord.ATS.value;
+                }
+                var totalQtyRequested = quantity;
+                if (productInCart) totalQtyRequested += productInCart.quantityValue;
+                if (smProductInCart) totalQtyRequested += smProductInCart.quantityValue;
+
+                canBeAdded = totalQtyRequested <= availableToSell;
+
+                if (!canBeAdded && stockMutualizationEnabled && !empty(SMInventoryListID)) {
+                    var smAvailable = 0;
+                    var missingQty = totalQtyRequested - availableToSell;
+                    var smInventory = ProductInventoryMgr.getInventoryList(SMInventoryListID);
+                    if (smInventory && smInventory.getRecord(product.ID)) {
+                        smAvailable = smInventory.getRecord(product.ID).ATS.value;
+                    }
+
+                    if (smAvailable >= missingQty) {
+                        canBeAdded = true;
+
+                        if (smProductInCart) {
+                            smProductInCart.setQuantityValue(missingQty);
+                            quantity -= missingQty;
+                            smProductLineItem = smProductInCart;
+                        } else {
+                            // Split Shipments so that each PLI can have a different inventory list assigned
+                            smProductLineItem = cart.createProductLineItem(product, productOptionModel, smShipment);
+                            smProductLineItem.setQuantityValue(missingQty);
+
+                            // Sets the Inventory List to the SM one
+                            Transaction.wrap(function () {
+                                smProductLineItem.setProductInventoryList(smInventory);
+                                if (product.bundle) {
+                                    for (var a = 0; a < smProductLineItem.bundledProductLineItems.length; a++) {
+                                        smProductLineItem.bundledProductLineItems[a].setProductInventoryList(smInventory);
+                                    }
+                                }
+                            });
+
+                            quantity -= missingQty;
+                        }
+                    }
+                }
+
+                if (quantity > 0) {
+                    if (productInCart) {
+                        if (productInCart.optionModel) {
+                            productLineItem = cart.createProductLineItem(product, productOptionModel, shipment);
+                            if (quantity) {
+                                productLineItem.setQuantityValue(quantity);
+                            }
+                        } else {
+                            quantityInCart = productInCart.getQuantity();
+                            quantityToSet = quantity ? quantity + quantityInCart : quantityInCart + 1;
+                            productInCart.setQuantityValue(quantityToSet);
+                        }
+                    } else {
                         productLineItem = cart.createProductLineItem(product, productOptionModel, shipment);
+
                         if (quantity) {
                             productLineItem.setQuantityValue(quantity);
                         }
-                    } else {
-                        quantityInCart = productInCart.getQuantity();
-                        quantityToSet = quantity ? quantity + quantityInCart : quantityInCart + 1;
-                        productInCart.setQuantityValue(quantityToSet);
                     }
-                } else {
-                    productLineItem = cart.createProductLineItem(product, productOptionModel, shipment);
 
-                    if (quantity) {
-                        productLineItem.setQuantityValue(quantity);
-                    }
+                    // Transaction.wrap(function () {
+                    //     productLineItem.setProductInventoryList(ProductInventoryMgr.getInventoryList());
+                    // });
                 }
 
                 /**
@@ -162,7 +235,7 @@ var CartModel = base.extend({
                 if (request.httpParameterMap.childPids.stringValue && product.bundle) {
                     var childPids = request.httpParameterMap.childPids.stringValue.split(',');
 
-                    for (i = 0; i < childPids.length; i++) {
+                    for (var i = 0; i < childPids.length; i++) {
                         var childProduct = Product.get(childPids[i]).object;
 
                         if (childProduct) {
@@ -179,6 +252,33 @@ var CartModel = base.extend({
                 cart.calculate();
             }
         });
+    },
+    /**
+     * Creates a new QuantityLineItem helper object for each quantity of a ProductLineItem, if one does not already exist.
+     * It does not create QuantityLineItems for products using in-store pickup as the shipping method or from Stock Mutualization.
+     *
+     * @alias module:models/CartModel~CartModel/separateQuantities
+     * @param {dw.order.ProductLineItem} pli - The ProductLineItem.
+     * @param {dw.util.ArrayList} quantityLineItems - The existing QuantityLineItems.
+     * @returns {dw.util.ArrayList} A list of separated QuantityLineItems.
+     */
+    separateQuantities: function (pli, quantityLineItems) {
+        var quantity = pli.quantityValue;
+
+        // Creates new ArrayList if there are no QLIs
+        if (!quantityLineItems) {
+            quantityLineItems = new ArrayList();
+        }
+
+        // Creates for each quantity of the ProductLineItem a new QuantityLineItem.
+        for (var i = 0; i < quantity; i++) {
+            // Skips plis that are using the in-store pick up shipping method.
+            if (empty(pli.custom.fromStoreId)) {
+                quantityLineItems.add(new QuantityLineItem(pli));
+            }
+        }
+
+        return quantityLineItems;
     }
 });
 
@@ -186,21 +286,19 @@ var CartModel = base.extend({
  * Gets a new instance for the current or a given basket.
  *
  * @alias module:models/CartModel~CartModel/get
- * @param parameter {dw.order.Basket=} The basket object to enhance/wrap. If NULL the basket is retrieved from
+ * @param {dw.order.Basket} parameter - The basket object to enhance/wrap. If NULL the basket is retrieved from
  * the current session, if existing.
- * @returns {module:models/CartModel~CartModel}
+ * @returns {module:models/CartModel~CartModel} - The Cart Model
  */
 CartModel.get = function (parameter) {
     var basket = null;
 
     if (!parameter) {
-
         var currentBasket = BasketMgr.getCurrentBasket();
 
         if (currentBasket !== null) {
             basket = currentBasket;
         }
-
     } else if (typeof parameter === 'object') {
         basket = parameter;
     }
@@ -211,7 +309,7 @@ CartModel.get = function (parameter) {
  * Gets or creates a new instance of a basket.
  *
  * @alias module:models/CartModel~CartModel/goc
- * @returns {module:models/CartModel~CartModel}
+ * @returns {module:models/CartModel~CartModel} - The Cart Model
  */
 CartModel.goc = function () {
     var obj = null;
