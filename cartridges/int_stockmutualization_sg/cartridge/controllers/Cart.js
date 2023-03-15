@@ -18,6 +18,21 @@ var app = require('*/cartridge/scripts/app');
 var guard = require('*/cartridge/scripts/guard');
 
 /**
+ * Invalidates the login and shipment forms. Renders the checkout/cart/cart template.
+ */
+function show() {
+    var cartForm = app.getForm('cart');
+    app.getForm('login').invalidate();
+
+    cartForm.get('shipments').invalidate();
+
+    app.getView('Cart', {
+        cart: app.getModel('Cart').get(),
+        RegistrationStatus: false
+    }).render('checkout/cart/cart');
+}
+
+/**
  * Adds or replaces a product in the cart, gift registry, or wishlist.
  * If the function is being called as a gift registry update, calls the
  * {@link module:controllers/GiftRegistry~replaceProductListItem|GiftRegistry controller ReplaceProductListItem function}.
@@ -63,6 +78,9 @@ function addProduct() {
 /** Adds a product to the cart.
  * @see {@link module:controllers/Cart~addProduct} */
 exports.AddProduct = guard.ensure(['post'], addProduct);
+/** Invalidates the login and shipment forms. Renders the basket content.
+ * @see {@link module:controllers/Cart~show} */
+exports.Show = guard.ensure(['https'], show);
 
 Object.keys(base).forEach(function (key) {
     if (!exports[key]) {

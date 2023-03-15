@@ -142,6 +142,7 @@ var CartModel = base.extend({
                 var smShipment = cart.object.getShipment('sm') ? cart.object.getShipment('sm') : cart.object.createShipment('sm');
                 var hasAllocationOnSite = !empty(product.availabilityModel) && !empty(product.availabilityModel.inventoryRecord);
 
+                quantity = quantity || 1;
 
                 for (var q = 0; q < productLineItems.length; q++) {
                     if (productLineItems[q].productID === product.ID) {
@@ -221,9 +222,9 @@ var CartModel = base.extend({
                         }
                     }
 
-                    // Transaction.wrap(function () {
-                    //     productLineItem.setProductInventoryList(ProductInventoryMgr.getInventoryList());
-                    // });
+                    Transaction.wrap(function () {
+                        productLineItem.setProductInventoryList(ProductInventoryMgr.getInventoryList());
+                    });
                 }
 
                 /**

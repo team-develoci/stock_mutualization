@@ -14,7 +14,9 @@
 var checkoutUtils = require('*/cartridge/scripts/checkout/Utils.ds');
 var ArrayList = require('dw/util/ArrayList');
 var UUIDUtils = require('dw/util/UUIDUtils');
+var ProductInventoryMgr = require('dw/catalog/ProductInventoryMgr');
 var Site = require('dw/system/Site');
+var Transaction = require('dw/system/Transaction');
 var stockMutualizationEnabled = Site.current.getCustomPreferenceValue('SM_Enabled');
 var SMInventoryListID = Site.current.getCustomPreferenceValue('SM_InventoryID');
 
@@ -68,7 +70,7 @@ function destroyProductLineItems(basket) {
     var productLineItem;
     for (var m = 0; m < productLineItems.length; m++) {
         productLineItem = productLineItems[m];
-        if (!productLineItem.custom.fromStoreId && (!stockMutualizationEnabled || productLineItem.productInventoryListID !== SMInventoryListID)) {
+        if (!productLineItem.custom.fromStoreId) {
             basket.removeProductLineItem(productLineItem);
         }
     }
@@ -119,11 +121,10 @@ function createNewShipmentsAndProductLineItems(addressRelations, bonusDiscountLi
 
         for (var n = 0; n < products.length; n++) {
             var product = products[n];
-            // eslint-disable-next-line no-continue
-            if (stockMutualizationEnabled && productRelations[product].inventoryID === SMInventoryListID) continue;
             productId = productRelations[product].productID;
             optionID = productRelations[product].productOptionID;
             isProductBonus = productRelations[product].isBonusProduct;
+            var inventoryID = productRelations[product].inventoryID;
 
             if (isProductBonus === true) {
                 var productToAdd;
@@ -143,9 +144,27 @@ function createNewShipmentsAndProductLineItems(addressRelations, bonusDiscountLi
                     }
                 }
                 productLineItem = basket.createBonusProductLineItem(bonusDiscountLineItem, productToAdd, null, shipment);
+            } else if (stockMutualizationEnabled && inventoryID === SMInventoryListID) {
+                var smShipment = basket.getShipment('sm') ? basket.getShipment('sm') : basket.createShipment('sm');
+                if (!smShipment.getShippingAddress()) {
+                    var smAddress = smShipment.createShippingAddress();
+                    var smShippingAddress = new checkoutUtils.ShippingAddress();
+                    smShippingAddress.UUID = UUIDUtils.createUUID();
+                    smShippingAddress.copyFrom(address);
+                    smShippingAddress.copyTo(smAddress);
+                }
+                productLineItem = basket.createProductLineItem(productId, smShipment);
             } else {
                 productLineItem = basket.createProductLineItem(productId, shipment);
                 productLineItem.setQuantityValue(productRelations[product].quantity);
+            }
+
+            if (inventoryID) {
+                // eslint-disable-next-line no-loop-func
+                Transaction.wrap(function () {
+                    var inventory = ProductInventoryMgr.getInventoryList(inventoryID);
+                    productLineItem.setProductInventoryList(inventory);
+                });
             }
 
             // re-assign the option product based on the optionID
@@ -160,7 +179,6 @@ function createNewShipmentsAndProductLineItems(addressRelations, bonusDiscountLi
                 // type: Iterator
                 var options = productOptionModel.getOptionValues(productOption).iterator();
                 while (options.hasNext()) {
-
                     var optionValue = options.next();
 
                     // if the option id equals the selection option id, set the selected option

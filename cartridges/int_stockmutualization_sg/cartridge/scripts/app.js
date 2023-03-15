@@ -1,3 +1,5 @@
+/* eslint-disable no-param-reassign */
+/* eslint-disable valid-jsdoc */
 /* eslint-disable no-undef */
 'use strict';
 
@@ -34,7 +36,6 @@ exports.getModel = function (modelName) {
 exports.getView = function (viewName, parameters) {
     var View;
     try {
-
         if (typeof viewName === 'string') {
             View = require('*/cartridge/scripts/views/' + viewName + 'View');
         } else {
@@ -52,7 +53,7 @@ exports.getView = function (viewName, parameters) {
 /**
  * Use this method to get a new instance for a given form reference or form object.
  *
- * @param formReference {dw.web.FormElement|String} Salesforce form id (/forms/$name$.xml) or Salesforce form object.
+ * @param {dw.web.FormElement|string} formReference Salesforce form id (/forms/$name$.xml) or Salesforce form object.
  * @returns {module:models/FormModel~FormModel}
  * @example
  * // simple form preparation
