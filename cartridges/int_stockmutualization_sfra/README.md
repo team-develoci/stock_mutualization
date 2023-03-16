@@ -1,1 +1,0 @@
-# Stock Mutualization SFRA :)
