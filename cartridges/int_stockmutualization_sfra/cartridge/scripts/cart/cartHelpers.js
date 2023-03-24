@@ -128,7 +128,7 @@ base.addProductToCart = function (currentBasket, productId, quantity, childProdu
             || totalQtyRequested <= availableToSell);
     }
 
-    if (!canBeAdded && stockMutualizationEnabled && !empty(SMInventoryListID)) {
+    if (!canBeAdded && stockMutualizationEnabled && !empty(SMInventoryListID) && ProductInventoryMgr.getInventoryList(SMInventoryListID)) {
         var smAvailable = 0;
         var missingQty = totalQtyRequested - availableToSell;
         var smInventory = ProductInventoryMgr.getInventoryList(SMInventoryListID);

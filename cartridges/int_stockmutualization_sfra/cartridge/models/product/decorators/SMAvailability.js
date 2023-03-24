@@ -9,7 +9,7 @@ var ProductInventoryMgr = require('dw/catalog/ProductInventoryMgr');
 module.exports = function (object, apiProduct, quantity, minOrderQuantity, availabilityModel) {
     var stockMutualizationEnabled = Site.current.getCustomPreferenceValue('SM_Enabled');
     var SMInventoryListID = Site.current.getCustomPreferenceValue('SM_InventoryID');
-    if (stockMutualizationEnabled && !empty(SMInventoryListID)) {
+    if (stockMutualizationEnabled && !empty(SMInventoryListID) && ProductInventoryMgr.getInventoryList(SMInventoryListID)) {
         var availability = {};
         availability.messages = [];
         var productQuantity = quantity ? parseInt(quantity, 10) : minOrderQuantity;
@@ -97,5 +97,7 @@ module.exports = function (object, apiProduct, quantity, minOrderQuantity, avail
             enumerable: true,
             value: orderable && SMOrderable
         });
+    } else {
+        require('*/cartridge/models/product/decorators/index').availability(object, quantity, minOrderQuantity, availabilityModel);
     }
 };
